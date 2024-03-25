@@ -1,67 +1,86 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import tensorflow as tf
+from stn import spatial_transformer_network as transformer
 
-class Deep_Emotion(nn.Module):
+class Deep_Emotion(tf.keras.Model):
     def __init__(self):
-        '''
-        Deep_Emotion class contains the network architecture.
-        '''
-        super(Deep_Emotion,self).__init__()
-        self.conv1 = nn.Conv2d(1,10,3)
-        self.conv2 = nn.Conv2d(10,10,3)
-        self.pool2 = nn.MaxPool2d(2,2)
+        super(Deep_Emotion, self).__init__(name='')
 
-        self.conv3 = nn.Conv2d(10,10,3)
-        self.conv4 = nn.Conv2d(10,10,3)
-        self.pool4 = nn.MaxPool2d(2,2)
+        # feature extraction layers
+        self.conv1 = tf.keras.layers.Conv2D(10, 3, kernel_initializer='random_normal')
+        self.conv2 = tf.keras.layers.Conv2D(10, 3, kernel_initializer='random_normal')
+        self.pool2 = tf.keras.layers.MaxPooling2D()
 
-        self.norm = nn.BatchNorm2d(10)
+        self.conv3 = tf.keras.layers.Conv2D(10, 3, kernel_initializer='random_normal')
+        self.conv4 = tf.keras.layers.Conv2D(10, 3, kernel_initializer='random_normal')
+        self.pool4 = tf.keras.layers.MaxPooling2D()
 
-        self.fc1 = nn.Linear(810,50)
-        self.fc2 = nn.Linear(50,7)
+        self.dropout4 = tf.keras.layers.Dropout(rate=0.5)
 
-        self.localization = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=7),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True),
-            nn.Conv2d(8, 10, kernel_size=5),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True)
+        # classification layers
+        self.fc1 = tf.keras.layers.Dense(
+            50,
+            kernel_initializer='random_normal',
+            kernel_regularizer=tf.keras.regularizers.L2(),
+            bias_regularizer=tf.keras.regularizers.L2()
+        )
+        self.fc2 = tf.keras.layers.Dense(
+            7,
+            kernel_initializer='random_normal',
+            kernel_regularizer=tf.keras.regularizers.L2(),
+            bias_regularizer=tf.keras.regularizers.L2()
         )
 
-        self.fc_loc = nn.Sequential(
-            nn.Linear(640, 32),
-            nn.ReLU(True),
-            nn.Linear(32, 3 * 2)
-        )
-        self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        # spatial transformer network
+        # padding and pool size so chosen such that output size is 90 as expected by loc_fc
+        self.loc_net = tf.keras.Sequential([
+            tf.keras.layers.Conv2D(8, 3, kernel_initializer='random_normal', padding='same'),
+            tf.keras.layers.MaxPooling2D(4),
+            tf.keras.layers.ReLU(),
 
-    def stn(self, x):
-        xs = self.localization(x)
-        xs = xs.view(-1, 640)
-        theta = self.fc_loc(xs)
-        theta = theta.view(-1, 2, 3)
+            tf.keras.layers.Conv2D(10, 3, kernel_initializer='random_normal', padding='same'),
+            tf.keras.layers.MaxPooling2D(4),
+            tf.keras.layers.ReLU()
+        ])
 
-        grid = F.affine_grid(theta, x.size())
-        x = F.grid_sample(x, grid)
-        return x
+        # regression layer of localization net initialized to predict identity transform
+        # output size=6 for affine transformations
+        self.loc_fc = tf.keras.Sequential([
+            tf.keras.layers.Dense(32, kernel_initializer='random_normal'),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.Dense(
+                6,
+                kernel_initializer='zeros',
+                bias_initializer=tf.keras.initializers.Constant([1,0,0,0,1,0])
+            )
+        ])
+    
+    def stn(self, input):
+        # localization - returns parameters for affine transformation
+        out  = tf.reshape(self.loc_net(input), [-1,90])
+        theta = tf.reshape(self.loc_fc(out), [-1,2,3])
 
-    def forward(self,input):
-        out = self.stn(input)
-
-        out = F.relu(self.conv1(out))
+        return theta
+    
+    def call(self, input, training=False):
+        # feature extraction
+        out = tf.nn.relu(self.conv1(input))
         out = self.conv2(out)
-        out = F.relu(self.pool2(out))
+        out = tf.nn.relu(self.pool2(out))
 
-        out = F.relu(self.conv3(out))
-        out = self.norm(self.conv4(out))
-        out = F.relu(self.pool4(out))
+        out = tf.nn.relu(self.conv3(out))
+        out = self.conv4(out)
+        out = tf.nn.relu(self.pool4(out))
 
-        out = F.dropout(out)
-        out = out.view(-1, 810)
-        out = F.relu(self.fc1(out))
+        out = self.dropout4(out, training=training)
+
+        # localization
+        theta = tf.reshape(self.stn(input), [-1,2,3])
+
+        # grid generation and sampling
+        out = tf.reshape(transformer(out, theta), [-1,810])
+
+        # classification
+        out = tf.nn.relu(self.fc1(out))
         out = self.fc2(out)
 
         return out
