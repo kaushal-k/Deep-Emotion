@@ -29,7 +29,7 @@ class Generate_data():
         train_data = pd.DataFrame(train.iloc[3589:,:])
         train_data.to_csv(self.data_path+"/train.csv")
         validation_data.to_csv(self.data_path+"/"+val_filename+".csv")
-        print("Done splitting the test file into validation & final test file")
+        print("Done splitting the train file into validation & final train file")
 
     def str_to_image(self, str_img = ' '):
         '''
@@ -47,15 +47,20 @@ class Generate_data():
             params:-
             datatype= str e.g (train, val, test)
         '''
-        foldername= self.data_path+"/"+datatype
-        csvfile_path= self.data_path+"/"+datatype+'.csv'
+        foldername= os.path.join(self.data_path, datatype)
+        csvfile_path= os.path.join(self.data_path, datatype+'.csv')
         if not os.path.exists(foldername):
             os.mkdir(foldername)
 
         data = pd.read_csv(csvfile_path)
         images = data['pixels'] #dataframe to series pandas
+        labels = data['emotion']
         numberofimages = images.shape[0]
         for index in tqdm(range(numberofimages)):
             img = self.str_to_image(images[index])
-            img.save(os.path.join(foldername,'{}{}.jpg'.format(datatype,index)),'JPEG')
+            lab = labels[index]
+            final_folder = os.path.join(foldername,str(lab))
+            if not os.path.exists(final_folder):
+                os.mkdir(final_folder)
+            img.save(os.path.join(final_folder,'{}.jpg'.format(index)),'JPEG')
         print('Done saving {} data'.format((foldername)))
