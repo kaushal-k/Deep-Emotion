@@ -1,7 +1,7 @@
 # Deep-Emotion: Facial Expression Recognition Using Attentional Convolutional Network (Tensorflow implementation)
 #### \*WIP\*
 
-As a personal exercise on reading and implementing SOTA papers, I implemented of one of the leading state-of-the-art papers in Facial Expression Recoginition (FER), [Deep-Emotion](https://arxiv.org/abs/1902.01019). As far as I know, there is no Tensorflow implementation of the paper so decided to go with TF as my choice of framework.
+As a personal exercise on reading and implementing SOTA papers, I implemented one of the leading state-of-the-art papers in Facial Expression Recoginition (FER), [Deep-Emotion](https://arxiv.org/abs/1902.01019). As far as I know, there is no Tensorflow implementation of the paper so decided to go with TF as my choice of framework.
 
 There are, however, a couple Pytorch versions. The most popular of them is [omarSayed7's non-official implementation of DeepEmotion2019](https://github.com/omarsayed7/Deep-Emotion.git). I forked and used it as a reference.
 
