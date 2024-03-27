@@ -1,12 +1,14 @@
 # from __future__ import print_function
 import os
 import argparse
+from datetime import datetime
 import tensorflow as tf
 
 from deep_emotion import Deep_Emotion
 from generate_data import Generate_data
 
 tf.random.set_seed(1234)
+logdir = os.path.join('logs', 'fit', datetime.now().strftime("%Y%m%d-%H%M%S"))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Configuration of setup and training process")
@@ -61,6 +63,12 @@ if __name__ == '__main__':
         loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(
+            log_dir=logdir,
+            histogram_freq=1,
+            write_images=True
+        )
+
         net.compile(
             optimizer=optimizer,
             loss=loss_object,
@@ -70,5 +78,6 @@ if __name__ == '__main__':
         net.fit(
             x=train_dataset,
             epochs=epochs,
-            validation_data=validation_dataset
+            validation_data=validation_dataset,
+            callbacks=[tensorboard_callback]
         )
